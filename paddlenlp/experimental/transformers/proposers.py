@@ -353,7 +353,6 @@ class EagleProposer(ModelProposer):
     def run_infer(self, share_inputs, **kwargs):
         base_model_full_hidden_states = kwargs.get("base_model_full_hidden_states", None)
         if self.model_inputs["not_need_stop"]:
-            print("eagle_get_base_model_hidden_states", flush=True)
             base_model_hidden_states = eagle_get_base_model_hidden_states(
                 base_model_full_hidden_states,
                 self.model_inputs["seq_lens_this_time"],
@@ -365,17 +364,13 @@ class EagleProposer(ModelProposer):
                 share_inputs["seq_lens_encoder"],
                 self.actual_draft_token_num,
             )
-            paddle.device.synchronize()
             self.model_inputs["hidden_states"] = base_model_hidden_states
 
         with paddle.no_grad():
             self.model_inputs["substep"] = 0
             while self.model_inputs["not_need_stop"] and self.model_inputs["substep"] < self.max_draft_tokens:
                 self.last_seq_lens_this_time[:] = self.model_inputs["seq_lens_this_time"][:]
-                paddle.device.synchronize()
                 output_hidden_states = self.model.generate(**self.model_inputs)
-
-                print("generate success")
 
                 self.model_inputs["substep"] += 1
                 if self.model_inputs["not_need_stop"] and self.model_inputs["substep"] < self.actual_draft_token_num:
