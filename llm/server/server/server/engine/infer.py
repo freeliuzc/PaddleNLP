@@ -27,7 +27,7 @@ import paddle
 import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 from paddle.base.framework import use_pir_api
-from paddlenlp_ops import step_paddle
+from paddlenlp_ops import speculate_step_paddle, step_paddle
 from server.data.processor import DataProcessor
 from server.engine.config import Config
 from server.utils import get_logger
@@ -42,6 +42,7 @@ from paddlenlp.trl.llm_utils import get_rotary_position_embedding
 File_Path = os.path.realpath(sys.argv[0])
 Dir_Path = os.path.dirname(File_Path)
 logger = get_logger("infer_server", "infer.log")
+debug = False
 
 
 class ModelRunner:
@@ -453,39 +454,72 @@ class ModelRunner:
         """
         step cuda
         """
-        # whether speculate decoding
-        # if self.is_speculate_decoding:
-        #     speculate_step_token_num = self.speculate_config.speculate_max_draft_token_num + 1
-        # else:
-        #     speculate_step_token_num = 0
 
-        step_paddle(
-            self.share_inputs["stop_flags"],
-            self.share_inputs["seq_lens_this_time"],
-            self.share_inputs["step_seq_lens_encoder"],
-            self.share_inputs["seq_lens_encoder"],
-            self.share_inputs["seq_lens_decoder"],
-            self.share_inputs["block_tables"],
-            self.share_inputs["encoder_block_lens"],
-            self.share_inputs["is_block_step"],
-            self.share_inputs["step_block_list"],
-            self.share_inputs["step_lens"],
-            self.share_inputs["recover_block_list"],
-            self.share_inputs["recover_lens"],
-            self.share_inputs["need_block_list"],
-            self.share_inputs["need_block_len"],
-            self.share_inputs["used_list_len"],
-            self.share_inputs["free_list"],
-            self.share_inputs["free_list_len"],
-            self.share_inputs["input_ids"],
-            self.share_inputs["pre_ids"],
-            self.share_inputs["step_idx"],
-            self.share_inputs["next_tokens"],
-            self.share_inputs["first_token_ids"],
-            self.args.block_size,
-            self.args.enc_dec_block_num,
-            0,
-        )
+        logger.info("speculate_step_paddle")
+        if self.is_speculate_decoding:
+            speculate_step_paddle(
+                self.share_inputs["stop_flags"],
+                self.share_inputs["seq_lens_this_time"],
+                self.share_inputs["step_seq_lens_encoder"],
+                self.share_inputs["seq_lens_encoder"],
+                self.share_inputs["seq_lens_decoder"],
+                self.share_inputs["block_tables"],
+                self.share_inputs["encoder_block_lens"],
+                self.share_inputs["is_block_step"],
+                self.share_inputs["step_block_list"],
+                self.share_inputs["step_lens"],
+                self.share_inputs["recover_block_list"],
+                self.share_inputs["recover_lens"],
+                self.share_inputs["need_block_list"],
+                self.share_inputs["need_block_len"],
+                self.share_inputs["used_list_len"],
+                self.share_inputs["free_list"],
+                self.share_inputs["free_list_len"],
+                self.share_inputs["input_ids"],
+                self.share_inputs["pre_ids"],
+                self.share_inputs["step_idx"],
+                self.share_inputs["next_tokens"],
+                self.share_inputs["first_token_ids"],
+                self.share_inputs["accept_num"],
+                self.args.block_size,
+                self.args.enc_dec_block_num,
+                self.speculate_config.speculate_max_draft_token_num,
+            )
+        else:
+            step_paddle(
+                self.share_inputs["stop_flags"],
+                self.share_inputs["seq_lens_this_time"],
+                self.share_inputs["step_seq_lens_encoder"],
+                self.share_inputs["seq_lens_encoder"],
+                self.share_inputs["seq_lens_decoder"],
+                self.share_inputs["block_tables"],
+                self.share_inputs["encoder_block_lens"],
+                self.share_inputs["is_block_step"],
+                self.share_inputs["step_block_list"],
+                self.share_inputs["step_lens"],
+                self.share_inputs["recover_block_list"],
+                self.share_inputs["recover_lens"],
+                self.share_inputs["need_block_list"],
+                self.share_inputs["need_block_len"],
+                self.share_inputs["used_list_len"],
+                self.share_inputs["free_list"],
+                self.share_inputs["free_list_len"],
+                self.share_inputs["input_ids"],
+                self.share_inputs["pre_ids"],
+                self.share_inputs["step_idx"],
+                self.share_inputs["next_tokens"],
+                self.share_inputs["first_token_ids"],
+                self.args.block_size,
+                self.args.enc_dec_block_num,
+                0,
+            )
+
+        if debug:
+            logger.info("after speculate_step_paddle")
+            for k, v in self.share_inputs.items():
+                if "cache" not in k and "rope" not in k:
+                    logger.info(f"{k}: {v}")
+            logger.info("------------------")
 
     def initialize_engine_ready_check_flag(self):
         """
@@ -634,11 +668,25 @@ class ModelRunner:
                     insert_step=self.insert_step,
                 )
 
+            if debug:
+                logger.info("before redictor run")
+                for k, v in self.share_inputs.items():
+                    if "cache" not in k and "rope" not in k:
+                        logger.info(f"{k}: {v}")
+                logger.info("------------------")
+
             if self.config.return_full_hidden_states:
                 outputs = self.infer_engine.predictor.run(self.input_tensors)
                 self.helper_tensors["full_hidden_states"] = outputs[0]
             else:
                 self.infer_engine.predictor.run()
+
+            if debug:
+                logger.info("after redictor run")
+                for k, v in self.share_inputs.items():
+                    if "cache" not in k and "rope" not in k:
+                        logger.info(f"{k}: {v}")
+                logger.info("------------------")
 
             self.share_inputs["infer_seed"].add_(infer_seed_increment)
             self.share_inputs["infer_seed"][:] %= self.MAX_INFER_SEED
