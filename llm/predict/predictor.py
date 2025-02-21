@@ -31,7 +31,7 @@ try:
     from paddlenlp.experimental.transformers import (
         EagleProposer,
         InferenceWithReferenceProposer,
-        SpeculateModelArgument,
+        SpeculateArgument,
     )
 except:
     pass
@@ -1050,7 +1050,7 @@ class DygraphBlockInferencePredictor(BlockInferencePredictorMixin):
                 config.max_length,
             )
         elif config.speculate_method in ["eagle", "mtp"]:
-            speculate_model_args = SpeculateModelArgument.build_from_predictor(config)
+            speculate_model_args = SpeculateArgument.build_from_predictor(config)
             self.proposer = EagleProposer(args=speculate_model_args)
         else:
             self.proposer = None
@@ -1174,7 +1174,7 @@ class StaticGraphBlockInferencePredictor(BlockInferencePredictorMixin):
                 config.max_length,
             )
         elif config.speculate_method in ["eagle", "mtp"]:
-            speculate_model_args = SpeculateModelArgument.build_from_predictor(config)
+            speculate_model_args = SpeculateArgument.build_from_predictor(config)
             self.proposer = EagleProposer(args=speculate_model_args)
         else:
             self.proposer = None
@@ -1271,8 +1271,6 @@ class StaticGraphBlockInferencePredictor(BlockInferencePredictorMixin):
                 self.predictor.run(list(self.model_inputs.values()))
         logger.info(f"running spend {time.time()  -  s_time}")
 
-        if self.proposer is not None:
-            self.proposer.postprocess(base_model_inputs=self.model_inputs)
         if self.tensor_parallel_rank == 0:
             outputs = []
             output_tokens = []
