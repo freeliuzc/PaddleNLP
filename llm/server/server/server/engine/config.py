@@ -148,7 +148,6 @@ class Config:
         if self.block_ratio >= 1.0:
             self.enc_dec_block_num = (self.max_dec_len + self.block_size - 1) // self.block_size
         self.max_query_block_num = (max(self.max_dec_len, self.max_seq_len) + self.block_size - 1) // self.block_size
-        self.max_query_block_num = (self.max_dec_len + self.max_seq_len + self.block_size - 1) // self.block_size
         self.dec_token_num = self.enc_dec_block_num * self.block_size
         self.total_block_num = int(self.block_bs * self.max_query_block_num)
         self.max_block_num = int(self.total_block_num * self.block_ratio)
@@ -262,6 +261,7 @@ class Config:
                 total_max_length=self.max_seq_len,
                 max_length=self.max_dec_len,
                 dtype=self.dtype,
+                mla_use_matrix_absorption=model_cfg.get("mla_use_matrix_absorption", False),
             )
 
             logger = get_logger("model_server", "infer_config.log")

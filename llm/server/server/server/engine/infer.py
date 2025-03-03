@@ -308,7 +308,7 @@ class ModelRunner:
         self.share_inputs["max_length"] = paddle.full(
             shape=[self.args.max_batch_size, 1], fill_value=self.max_length, dtype="int64"
         )
-        self.share_inputs["not_need_stop"] = paddle.full(shape=[1], fill_value=False, dtype="bool")
+        self.share_inputs["not_need_stop"] = paddle.full(shape=[1], fill_value=False, dtype="bool").cpu()
         self.share_inputs["stop_flags"] = paddle.full(
             shape=[self.args.max_batch_size, 1], fill_value=True, dtype="bool"
         )
@@ -382,7 +382,8 @@ class ModelRunner:
 
     def set_inputs(self):
         for i in range(self.args.num_layers):
-            self.share_inputs["value_caches_{}".format(i)] = self.cache_kvs["value_caches_{}".format(i)]
+            if not self.mla_use_absorb:
+                self.share_inputs["value_caches_{}".format(i)] = self.cache_kvs["value_caches_{}".format(i)]
             self.share_inputs["key_caches_{}".format(i)] = self.cache_kvs["key_caches_{}".format(i)]
 
         self.input_tensors = []
